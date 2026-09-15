@@ -32,31 +32,31 @@ npm install
 
 ### 2. Environment Variables
 
-Create a `.env` file in the root directory with the following variables:
+Create a `.env` file in the root directory with your own local values. Do not commit personal credentials or private email addresses to the repository.
 
 ```env
 # Server Configuration
-PORT=5000
+PORT=3000
 NODE_ENV=development
 
 # Database
-MONGODB_URI=mongodb://localhost:27017/cockpit_management
+MONGODB_URI=mongodb://localhost:27017/your_database_name
 
 # JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_SECRET=your-super-secret-jwt-key
 JWT_EXPIRES_IN=15m
-JWT_REFRESH_SECRET=your-super-secret-refresh-jwt-key-change-this-in-production
+JWT_REFRESH_SECRET=your-super-secret-refresh-jwt-key
 JWT_REFRESH_EXPIRES_IN=7d
 
 # Frontend URL (for CORS)
 FRONTEND_URL=http://localhost:5173
 
 # Email Configuration
-EMAIL_USER=sabongnation00@gmail.com
+EMAIL_USER=your-email@example.com
 EMAIL_PASS=your-app-password
-SMTP_HOST=smtp.gmail.com
+SMTP_HOST=smtp.example.com
 SMTP_PORT=587
-SMTP_FROM=sabongnation00@gmail.com
+SMTP_FROM=your-email@example.com
 ```
 
 ### 3. Database Setup
@@ -69,11 +69,7 @@ Make sure MongoDB is running and accessible.
 npm run seed:admin
 ```
 
-This creates a default admin account:
-
-- **Username**: admin
-- **Password**: Password2025@@
-- **Email**: sabongnation00@gmail.com
+This creates a local default admin account for development. Use secure, non-public credentials in your environment.
 
 ### 5. Start Development Server
 
@@ -81,7 +77,7 @@ This creates a default admin account:
 npm run dev
 ```
 
-The server will start on `http://localhost:3000`
+The server will start on your configured local development port.
 
 ## API Endpoints
 
@@ -95,8 +91,8 @@ Login with username/email and password.
 
 ```json
 {
-  "username": "admin",
-  "password": "Password2025@@"
+    "username": "admin",
+    "password": "your-admin-password"
 }
 ```
 
@@ -104,17 +100,17 @@ Login with username/email and password.
 
 ```json
 {
-  "success": true,
-  "message": "Login successful.",
-  "user": {
-    "id": "user_id",
-    "username": "admin",
-    "email": "sabongnation00@gmail.com",
-    "firstName": "System",
-    "lastName": "Administrator",
-    "role": "admin",
-    "fullName": "System Administrator"
-  }
+    "success": true,
+    "message": "Login successful.",
+    "user": {
+        "id": "user_id",
+        "username": "admin",
+        "email": "admin@example.com",
+        "firstName": "System",
+        "lastName": "Administrator",
+        "role": "admin",
+        "fullName": "System Administrator"
+    }
 }
 ```
 
@@ -130,12 +126,12 @@ Register a new user (admin or staff).
 
 ```json
 {
-  "username": "newuser",
-  "email": "user@example.com",
-  "password": "securepassword",
-  "firstName": "John",
-  "lastName": "Doe",
-  "role": "bet_staff"
+    "username": "newuser",
+    "email": "user@example.com",
+    "password": "securepassword",
+    "firstName": "John",
+    "lastName": "Doe",
+    "role": "bet_staff"
 }
 ```
 
@@ -157,10 +153,10 @@ Create a new staff account with auto-generated password.
 
 ```json
 {
-  "email": "staff@example.com",
-  "firstName": "Jane",
-  "lastName": "Smith",
-  "role": "entrance_staff"
+    "email": "staff@example.com",
+    "firstName": "Jane",
+    "lastName": "Smith",
+    "role": "entrance_staff"
 }
 ```
 
@@ -168,19 +164,19 @@ Create a new staff account with auto-generated password.
 
 ```json
 {
-  "success": true,
-  "message": "Staff account created successfully. Email sent with account details.",
-  "user": {
-    "id": "user_id",
-    "username": "staff",
-    "email": "staff@example.com",
-    "firstName": "Jane",
-    "lastName": "Smith",
-    "role": "entrance_staff",
-    "fullName": "Jane Smith",
-    "isActive": true,
-    "emailVerified": false
-  }
+    "success": true,
+    "message": "Staff account created successfully. Email sent with account details.",
+    "user": {
+        "id": "user_id",
+        "username": "staff",
+        "email": "staff@example.com",
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "role": "entrance_staff",
+        "fullName": "Jane Smith",
+        "isActive": true,
+        "emailVerified": false
+    }
 }
 ```
 
@@ -211,9 +207,9 @@ Update staff account information.
 
 ```json
 {
-  "firstName": "Updated",
-  "lastName": "Name",
-  "role": "bet_staff"
+    "firstName": "Updated",
+    "lastName": "Name",
+    "role": "bet_staff"
 }
 ```
 
@@ -235,7 +231,7 @@ Resend verification email.
 
 ```json
 {
-  "email": "staff@example.com"
+    "email": "staff@example.com"
 }
 ```
 
@@ -262,8 +258,8 @@ All endpoints return consistent error responses:
 
 ```json
 {
-  "success": false,
-  "message": "Error description"
+    "success": false,
+    "message": "Error description"
 }
 ```
 
