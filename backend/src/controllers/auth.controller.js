@@ -1,0 +1,526 @@
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import User from '../models/user.model.js';
+import { ENV } from '../config/env.js';
+import { sendPasswordResetEmail } from '../services/email.service.js';
+
+// Generate JWT tokens
+const generateTokens = (userId) => {
+    const accessToken = jwt.sign(
+        { userId },
+        ENV.JWT_SECRET,
+        { expiresIn: ENV.JWT_EXPIRES_IN || '15m' }
+    );
+
+    const refreshToken = jwt.sign(
+        { userId },
+        ENV.JWT_REFRESH_SECRET,
+        { expiresIn: ENV.JWT_REFRESH_EXPIRES_IN || '7d' }
+    );
+
+    return { accessToken, refreshToken };
+};
+
+// Set cookies
+const setAuthCookies = (res, accessToken, refreshToken) => {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Access token cookie - accessible to JavaScript for client-side token management
+    res.cookie('accessToken', accessToken, {
+        httpOnly: false, // Allow JavaScript access
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    // Refresh token cookie - httpOnly for security
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+};
+
+// Clear cookies
+const clearAuthCookies = (res) => {
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+};
+
+const generatePasswordResetToken = () => crypto.randomBytes(32).toString('hex');
+
+// Login
+export const login = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username and password are required.'
+            });
+        }
+
+        // Find user by username or email
+        const user = await User.findOne({
+            $or: [
+                { username },
+                { email: username.toLowerCase() } // Convert to lowercase for case-insensitive comparison
+            ]
+        });
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials.'
+            });
+        }
+
+        // Check if account is active
+        if (!user.isActive) {
+            return res.status(401).json({
+                success: false,
+                message: 'Account is disabled. Please contact administrator.'
+            });
+        }
+
+        // Check if email is verified (for staff accounts)
+        if (user.role !== 'admin' && !user.emailVerified) {
+            return res.status(401).json({
+                success: false,
+                message: 'Please verify your email before logging in.'
+            });
+        }
+
+        // Verify password
+        const isPasswordValid = await user.comparePassword(password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials.'
+            });
+        }
+
+        // Update login history
+        user.loginHistory.push({
+            ipAddress: req.ip || req.connection.remoteAddress,
+            device: req.headers['user-agent'] || 'Unknown'
+        });
+
+        // Keep only last 10 login records
+        if (user.loginHistory.length > 10) {
+            user.loginHistory = user.loginHistory.slice(-10);
+        }
+
+        user.lastLogin = new Date();
+        await user.save();
+
+        // Generate tokens
+        const { accessToken, refreshToken } = generateTokens(user._id);
+
+        // Set cookies
+        setAuthCookies(res, accessToken, refreshToken);
+
+        res.status(200).json({
+            success: true,
+            message: 'Login successful.',
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                fullName: user.fullName,
+                passwordChanged: user.passwordChanged
+            }
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Register (Admin only)
+export const register = async (req, res) => {
+    try {
+        const { username, email, password, firstName, lastName, role } = req.body;
+
+        // Validate required fields
+        if (!username || !email || !password || !firstName || !lastName || !role) {
+            return res.status(400).json({
+                success: false,
+                message: 'All fields are required.'
+            });
+        }
+
+        // Validate role
+        const validRoles = ['admin', 'entrance_staff', 'tangkal_staff', 'bet_staff', 'registration_staff'];
+        if (!validRoles.includes(role)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid role.'
+            });
+        }
+
+        // Check if username or email already exists
+        const existingUser = await User.findOne({
+            $or: [{ username }, { email }]
+        });
+
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username or email already exists.'
+            });
+        }
+
+        // Create new user
+        const user = new User({
+            username,
+            email,
+            password,
+            firstName,
+            lastName,
+            role,
+            emailVerified: role === 'admin' ? true : false, // Admin doesn't need email verification
+            passwordChanged: role === 'admin' ? true : false // Admin accounts start with changed password, staff accounts need to change
+        });
+
+        await user.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'User registered successfully.',
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                fullName: user.fullName,
+                emailVerified: user.emailVerified
+            }
+        });
+
+    } catch (error) {
+        console.error('Register error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Refresh token
+export const refreshToken = async (req, res) => {
+    try {
+        const { accessToken, refreshToken } = generateTokens(req.user._id);
+
+        setAuthCookies(res, accessToken, refreshToken);
+
+        res.status(200).json({
+            success: true,
+            message: 'Token refreshed successfully.'
+        });
+
+    } catch (error) {
+        console.error('Refresh token error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Logout
+export const logout = async (req, res) => {
+    try {
+        clearAuthCookies(res);
+
+        res.status(200).json({
+            success: true,
+            message: 'Logged out successfully.'
+        });
+
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Get current user
+export const getCurrentUser = async (req, res) => {
+    try {
+        res.status(200).json({
+            success: true,
+            user: req.user
+        });
+
+    } catch (error) {
+        console.error('Get current user error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Forgot password - request reset link
+export const requestPasswordReset = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email is required.'
+            });
+        }
+
+        const normalizedEmail = email.toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail });
+
+        // Return success even if user not found to avoid email enumeration
+        if (!user) {
+            return res.status(200).json({
+                success: true,
+                message: 'If that email is registered, a reset link has been sent.'
+            });
+        }
+
+        if (!user.isActive) {
+            return res.status(403).json({
+                success: false,
+                message: 'Account is disabled. Please contact administrator.'
+            });
+        }
+
+        const resetToken = generatePasswordResetToken();
+        const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+        user.passwordResetToken = resetToken;
+        user.passwordResetExpires = resetTokenExpires;
+        await user.save();
+
+        const emailSent = await sendPasswordResetEmail(user, resetToken);
+
+        if (!emailSent) {
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to send reset email. Please try again.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Password reset instructions have been sent to your email.'
+        });
+    } catch (error) {
+        console.error('Request password reset error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Reset password with token
+export const resetPassword = async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+
+        if (!token || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Token and new password are required.'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'New password must be at least 6 characters long.'
+            });
+        }
+
+        const user = await User.findOne({
+            passwordResetToken: token,
+            passwordResetExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid or expired reset token.'
+            });
+        }
+
+        user.password = newPassword;
+        user.passwordChanged = true;
+        user.passwordChangedAt = new Date();
+        user.passwordResetToken = null;
+        user.passwordResetExpires = null;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Password has been reset successfully.'
+        });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Change password
+export const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user._id;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Current password and new password are required.'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'New password must be at least 6 characters long.'
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found.'
+            });
+        }
+
+        // Verify current password
+        const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+        if (!isCurrentPasswordValid) {
+            return res.status(400).json({
+                success: false,
+                message: 'Current password is incorrect.'
+            });
+        }
+
+        // Update password and mark as changed
+        user.password = newPassword;
+        user.passwordChanged = true;
+        user.passwordChangedAt = new Date();
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Password changed successfully.',
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                fullName: user.fullName,
+                passwordChanged: user.passwordChanged
+            }
+        });
+
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};
+
+// Update profile
+export const updateProfile = async (req, res) => {
+    try {
+        const { firstName, lastName, username } = req.body;
+        const userId = req.user._id;
+
+        // Validate required fields
+        if (!firstName || !lastName || !username) {
+            return res.status(400).json({
+                success: false,
+                message: 'First name, last name, and username are required.'
+            });
+        }
+
+        // Validate username length
+        if (username.length < 3) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username must be at least 3 characters long.'
+            });
+        }
+
+        // Check if username is already taken by another user
+        const existingUser = await User.findOne({
+            username: username,
+            _id: { $ne: userId } // Exclude current user
+        });
+
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username is already taken.'
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found.'
+            });
+        }
+
+        // Update user profile
+        user.firstName = firstName.trim();
+        user.lastName = lastName.trim();
+        user.username = username.trim();
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully.',
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                fullName: user.fullName,
+                passwordChanged: user.passwordChanged
+            }
+        });
+
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error.'
+        });
+    }
+};

@@ -1,0 +1,274 @@
+import React from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarRail, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarSeparator } from '@/components/ui/sidebar'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { LogOut, User, Settings, BarChart3, Users, Settings as SettingsIcon, TrendingUp, CheckSquare, ClipboardList, Shield, AlertTriangle, Calendar, PartyPopper, FileText, ClipboardCheck, UserPlus, Swords, File, Ticket, FileBarChart } from 'lucide-react'
+import useAuth from '@/hooks/useAuth'
+import logo from '@/assets/logo.png'
+
+const SidebarComponent = () => {
+	const { user, logout } = useAuth()
+	const location = useLocation()
+	const navigate = useNavigate()
+
+	// Navigation items based on user role
+	const getNavigationItems = (role) => {
+		const baseItems = [
+			{
+				label: 'Dashboard',
+				path: `/${role.replace('_', '-')}`,
+				icon: <BarChart3 className="size-4" />
+			}
+		]
+
+		switch (role) {
+			case 'admin':
+				return {
+					base: baseItems,
+					categories: [
+						{
+							label: 'Event Management',
+							items: [
+								{
+									label: 'Events',
+									path: '/admin/events',
+									icon: <Calendar className="size-4" />
+								},
+							]
+						},
+						{
+							label: 'Operations',
+							items: [
+								{
+									label: 'Entrance Fee Records',
+									path: '/admin/entrance',
+									icon: <Ticket className="size-4" />
+								},
+								{
+									label: 'Cage Rentals',
+									path: '/admin/tangkal',
+									icon: <Shield className="size-4" />
+								},
+								{
+									label: 'Cage Availability',
+									path: '/admin/cage-availability',
+									icon: <File className="size-4" />
+								}
+							]
+						},
+						{
+							label: 'Reports',
+							items: [
+								{
+									label: 'Reports',
+									path: '/admin/reports',
+									icon: <FileBarChart className="size-4" />
+								}
+							]
+						},
+						{
+							label: 'System',
+							items: [
+								{
+									label: 'User Management',
+									path: '/admin/users',
+									icon: <Users className="size-4" />
+								}
+							]
+						}
+					]
+				}
+			case 'entrance_staff':
+				return {
+					base: [
+						...baseItems,
+						{
+							label: 'Entrance Fee Records',
+							path: '/entrance-staff/entrance-registration',
+							icon: <CheckSquare className="size-4" />
+						}
+					],
+					categories: []
+				}
+			case 'tangkal_staff':
+				return {
+					base: [
+						...baseItems,
+						{
+							label: 'Cage Availability',
+							path: '/tangkal-staff/cage-availability',
+							icon: <File className="size-4" />
+						},
+						{
+							label: 'Cage Rentals',
+							path: '/tangkal-staff/cage-rentals',
+							icon: <Shield className="size-4" />
+						}
+					],
+					categories: []
+				}
+			case 'bet_staff':
+				return {
+					base: [
+						...baseItems,
+						{
+							label: 'Betting Management',
+							path: '/bet-staff/fight-schedule',
+							icon: <Swords className="size-4" />
+						}
+					],
+					categories: []
+				}
+			case 'registration_staff':
+				return {
+					base: [
+						...baseItems,
+						{
+							label: 'Registrations',
+							path: '/registration-staff/participant-registration',
+							icon: <FileText className="size-4" />
+						}
+					],
+					categories: []
+				}
+			default:
+				return {
+					base: baseItems,
+					categories: []
+				}
+		}
+	}
+
+	const navigationData = getNavigationItems(user?.role || 'registration_staff')
+
+	// Render navigation items for non-admin roles (flat structure)
+	const renderFlatNavigation = (items) => {
+		return items.map((item) => (
+			<SidebarMenuItem key={item.path}>
+				<SidebarMenuButton
+					asChild
+					className={`transition-colors duration-200 ${location.pathname === item.path ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+				>
+					<Link to={item.path}>
+						<span className={`mr-2 ${location.pathname === item.path ? 'text-gray-700 dark:text-gray-300' : 'text-muted-foreground'}`}>{item.icon}</span>
+						<span className={location.pathname === item.path ? 'font-medium' : ''}>{item.label}</span>
+					</Link>
+				</SidebarMenuButton>
+			</SidebarMenuItem>
+		))
+	}
+
+	// Render categorized navigation for admin
+	const renderCategorizedNavigation = (navigationData) => {
+		return (
+			<>
+				{/* Base items (Dashboard) */}
+				<SidebarGroup>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{renderFlatNavigation(navigationData.base)}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
+
+				{/* Categorized items */}
+				{navigationData.categories.map((category, index) => (
+					<SidebarGroup key={index}>
+						<SidebarGroupLabel>{category.label}</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{category.items.map((item) => (
+									<SidebarMenuItem key={item.path}>
+										<SidebarMenuButton
+											asChild
+											className={`transition-colors duration-200 ${location.pathname === item.path ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+										>
+											<Link to={item.path}>
+												<span className={`mr-2 ${location.pathname === item.path ? 'text-gray-700 dark:text-gray-300' : 'text-muted-foreground'}`}>{item.icon}</span>
+												<span className={location.pathname === item.path ? 'font-medium' : ''}>{item.label}</span>
+											</Link>
+										</SidebarMenuButton>
+									</SidebarMenuItem>
+								))}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				))}
+			</>
+		)
+	}
+
+	return (
+		<Sidebar>
+			<SidebarHeader className="px-3 py-3">
+				<div className="flex items-center gap-3">
+					<div className="size-8 rounded bg-black grid place-items-center">
+						<img src={logo} alt="Cockpit" className="size-6 object-contain invert" />
+					</div>
+					<div className="font-semibold">Cockpit Management</div>
+				</div>
+			</SidebarHeader>
+
+			<SidebarContent>
+				{user?.role === 'admin' ? (
+					renderCategorizedNavigation(navigationData)
+				) : (
+					<SidebarGroup>
+						<SidebarGroupLabel>Navigation</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{renderFlatNavigation(navigationData.base)}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
+			</SidebarContent>
+
+			<SidebarSeparator />
+
+			<SidebarFooter className="px-4 py-2">
+				<div className="flex items-center gap-3 mb-3">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="ghost" className="h-auto p-2 w-full justify-start">
+								<Avatar className="size-8 mr-3">
+									<AvatarImage src="" alt={user?.fullName || user?.username} />
+									<AvatarFallback>
+										{user?.firstName?.[0]}{user?.lastName?.[0]}
+									</AvatarFallback>
+								</Avatar>
+								<div className="flex flex-col items-start text-left">
+									<span className="text-sm font-medium">
+										{user?.fullName || user?.username}
+									</span>
+									<span className="text-xs text-muted-foreground capitalize">
+										{user?.role?.replace('_', ' ')}
+									</span>
+								</div>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-56">
+							<DropdownMenuItem onClick={() => navigate('/settings')}>
+								<Settings className="mr-2 h-4 w-4" />
+								Settings
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onClick={logout} className="text-red-600">
+								<LogOut className="mr-2 h-4 w-4" />
+								Logout
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+				<div className="text-xs text-muted-foreground text-center">
+					© {new Date().getFullYear()} Cockpit
+				</div>
+			</SidebarFooter>
+			<SidebarRail />
+		</Sidebar>
+	)
+}
+
+export default SidebarComponent

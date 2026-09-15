@@ -1,0 +1,65 @@
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+
+// Config
+import { connectDB } from "./src/config/db.js";
+import { ENV } from "./src/config/env.js";
+
+// Routes
+import authRoutes from "./src/routes/auth.routes.js";
+import staffRoutes from "./src/routes/staff.routes.js";
+import eventRoutes from "./src/routes/event.routes.js";
+import cockProfileRoutes from "./src/routes/cockProfile.routes.js";
+import participantRoutes from "./src/routes/participant.routes.js";
+import fightScheduleRoutes from "./src/routes/fightSchedule.routes.js";
+import matchResultRoutes from "./src/routes/matchResult.routes.js";
+import entranceRoutes from "./src/routes/entrance.routes.js";
+import cageRentalRoutes from "./src/routes/cageRental.routes.js";
+import cageAvailabilityRoutes from "./src/routes/cageAvailability.routes.js";
+
+const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+
+const corsOptions = {
+    origin: [ENV.FRONTEND_URL, "http://localhost:5173", "https://cockpit-management-system.vercel.app"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+};
+
+app.use(cors(corsOptions));
+
+// API Routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/staff', staffRoutes);
+app.use('/api/v1/events', eventRoutes);
+app.use('/api/v1/cock-profiles', cockProfileRoutes);
+app.use('/api/v1/participants', participantRoutes);
+app.use('/api/v1/fight-schedules', fightScheduleRoutes);
+app.use('/api/v1/match-results', matchResultRoutes);
+app.use('/api/v1/entrances', entranceRoutes);
+app.use('/api/v1/cage-rentals', cageRentalRoutes);
+app.use('/api/v1/cage-availability', cageAvailabilityRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: 'Server is running',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.listen(ENV.PORT, () => {
+    console.log(`Server is running on port ${ENV.PORT}`);
+});
+
+
+connectDB();
+
+export default app;

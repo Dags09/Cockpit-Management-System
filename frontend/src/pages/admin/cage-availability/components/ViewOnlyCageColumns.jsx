@@ -1,0 +1,86 @@
+import React from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Shield, MapPin, Hash, Settings, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react'
+
+export const createViewOnlyCageColumns = () => [
+  {
+    key: 'cageNumber',
+    label: 'Cage Number',
+    sortable: true,
+    filterable: false,
+    render: (value) => (
+      <div className="flex items-center gap-2">
+        <Shield className="h-4 w-4 text-muted-foreground" />
+        <span className="font-medium">{value}</span>
+      </div>
+    )
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    sortable: true,
+    filterable: true,
+    filterOptions: ['Available', 'Rented'],
+    filterValueMap: {
+      'Available': 'active',
+      'Rented': 'rented'
+    },
+    render: (value) => {
+      // Helper function to get status icon
+      const getStatusIcon = (status) => {
+        switch (status) {
+          case 'active':
+            return <CheckCircle className="h-3 w-3" />
+          case 'inactive':
+            return <XCircle className="h-3 w-3" />
+          case 'maintenance':
+            return <AlertTriangle className="h-3 w-3" />
+          case 'rented':
+            return <Clock className="h-3 w-3" />
+          default:
+            return <Settings className="h-3 w-3" />
+        }
+      }
+
+      // Helper function to get badge variant
+      const getBadgeVariant = (status) => {
+        switch (status) {
+          case 'active':
+            return 'default'
+          case 'inactive':
+            return 'destructive'
+          case 'maintenance':
+            return 'secondary'
+          case 'rented':
+            return 'outline'
+          default:
+            return 'outline'
+        }
+      }
+
+      // Helper function to get display text
+      const getStatusDisplayText = (status) => {
+        switch (status) {
+          case 'active':
+            return 'Available'
+          case 'rented':
+            return 'Rented'
+          default:
+            return status
+        }
+      }
+
+      return (
+        <div className="flex items-center gap-2">
+          {getStatusIcon(value)}
+          <Badge
+            variant={getBadgeVariant(value)}
+            className="text-xs capitalize"
+          >
+            {getStatusDisplayText(value)}
+          </Badge>
+        </div>
+      )
+    }
+  },
+]
