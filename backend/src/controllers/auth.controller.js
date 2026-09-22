@@ -1,54 +1,50 @@
-import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
-import User from '../models/user.model.js';
-import { ENV } from '../config/env.js';
-import { sendPasswordResetEmail } from '../services/email.service.js';
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
+import User from "../models/user.model.js";
+import { ENV } from "../config/env.js";
+import { sendPasswordResetEmail } from "../services/email.service.js";
 
 // Generate JWT tokens
 const generateTokens = (userId) => {
-    const accessToken = jwt.sign(
-        { userId },
-        ENV.JWT_SECRET,
-        { expiresIn: ENV.JWT_EXPIRES_IN || '15m' }
-    );
+    const accessToken = jwt.sign({ userId }, ENV.JWT_SECRET, {
+        expiresIn: ENV.JWT_EXPIRES_IN || "15m",
+    });
 
-    const refreshToken = jwt.sign(
-        { userId },
-        ENV.JWT_REFRESH_SECRET,
-        { expiresIn: ENV.JWT_REFRESH_EXPIRES_IN || '7d' }
-    );
+    const refreshToken = jwt.sign({ userId }, ENV.JWT_REFRESH_SECRET, {
+        expiresIn: ENV.JWT_REFRESH_EXPIRES_IN || "7d",
+    });
 
     return { accessToken, refreshToken };
 };
 
 // Set cookies
 const setAuthCookies = (res, accessToken, refreshToken) => {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = process.env.NODE_ENV === "production";
 
     // Access token cookie - accessible to JavaScript for client-side token management
-    res.cookie('accessToken', accessToken, {
+    res.cookie("accessToken", accessToken, {
         httpOnly: false, // Allow JavaScript access
         secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
-        maxAge: 15 * 60 * 1000 // 15 minutes
+        sameSite: isProduction ? "none" : "lax",
+        maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
     // Refresh token cookie - httpOnly for security
-    res.cookie('refreshToken', refreshToken, {
+    res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        sameSite: isProduction ? "none" : "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 };
 
 // Clear cookies
 const clearAuthCookies = (res) => {
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
 };
 
-const generatePasswordResetToken = () => crypto.randomBytes(32).toString('hex');
+const generatePasswordResetToken = () => crypto.randomBytes(32).toString("hex");
 
 // Login
 export const login = async (req, res) => {
@@ -58,7 +54,7 @@ export const login = async (req, res) => {
         if (!username || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Username and password are required.'
+                message: "Username and password are required.",
             });
         }
 
@@ -66,14 +62,14 @@ export const login = async (req, res) => {
         const user = await User.findOne({
             $or: [
                 { username },
-                { email: username.toLowerCase() } // Convert to lowercase for case-insensitive comparison
-            ]
+                { email: username.toLowerCase() }, // Convert to lowercase for case-insensitive comparison
+            ],
         });
 
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials.'
+                message: "Invalid credentials.",
             });
         }
 
@@ -81,15 +77,15 @@ export const login = async (req, res) => {
         if (!user.isActive) {
             return res.status(401).json({
                 success: false,
-                message: 'Account is disabled. Please contact administrator.'
+                message: "Account is disabled. Please contact administrator.",
             });
         }
 
         // Check if email is verified (for staff accounts)
-        if (user.role !== 'admin' && !user.emailVerified) {
+        if (user.role !== "admin" && !user.emailVerified) {
             return res.status(401).json({
                 success: false,
-                message: 'Please verify your email before logging in.'
+                message: "Please verify your email before logging in.",
             });
         }
 
@@ -98,14 +94,14 @@ export const login = async (req, res) => {
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials.'
+                message: "Invalid credentials.",
             });
         }
 
         // Update login history
         user.loginHistory.push({
             ipAddress: req.ip || req.connection.remoteAddress,
-            device: req.headers['user-agent'] || 'Unknown'
+            device: req.headers["user-agent"] || "Unknown",
         });
 
         // Keep only last 10 login records
@@ -124,7 +120,7 @@ export const login = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Login successful.',
+            message: "Login successful.",
             user: {
                 id: user._id,
                 username: user.username,
@@ -133,15 +129,14 @@ export const login = async (req, res) => {
                 lastName: user.lastName,
                 role: user.role,
                 fullName: user.fullName,
-                passwordChanged: user.passwordChanged
-            }
+                passwordChanged: user.passwordChanged,
+            },
         });
-
     } catch (error) {
-        console.error('Login error:', error);
+        console.error("Login error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -149,34 +144,48 @@ export const login = async (req, res) => {
 // Register (Admin only)
 export const register = async (req, res) => {
     try {
-        const { username, email, password, firstName, lastName, role } = req.body;
+        const { username, email, password, firstName, lastName, role } =
+            req.body;
 
         // Validate required fields
-        if (!username || !email || !password || !firstName || !lastName || !role) {
+        if (
+            !username ||
+            !email ||
+            !password ||
+            !firstName ||
+            !lastName ||
+            !role
+        ) {
             return res.status(400).json({
                 success: false,
-                message: 'All fields are required.'
+                message: "All fields are required.",
             });
         }
 
         // Validate role
-        const validRoles = ['admin', 'entrance_staff', 'tangkal_staff', 'bet_staff', 'registration_staff'];
+        const validRoles = [
+            "admin",
+            "entrance_staff",
+            "tangkal_staff",
+            "bet_staff",
+            "registration_staff",
+        ];
         if (!validRoles.includes(role)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid role.'
+                message: "Invalid role.",
             });
         }
 
         // Check if username or email already exists
         const existingUser = await User.findOne({
-            $or: [{ username }, { email }]
+            $or: [{ username }, { email }],
         });
 
         if (existingUser) {
             return res.status(400).json({
                 success: false,
-                message: 'Username or email already exists.'
+                message: "Username or email already exists.",
             });
         }
 
@@ -188,15 +197,15 @@ export const register = async (req, res) => {
             firstName,
             lastName,
             role,
-            emailVerified: role === 'admin' ? true : false, // Admin doesn't need email verification
-            passwordChanged: role === 'admin' ? true : false // Admin accounts start with changed password, staff accounts need to change
+            emailVerified: role === "admin" ? true : false, // Admin doesn't need email verification
+            passwordChanged: role === "admin" ? true : false, // Admin accounts start with changed password, staff accounts need to change
         });
 
         await user.save();
 
         res.status(201).json({
             success: true,
-            message: 'User registered successfully.',
+            message: "User registered successfully.",
             user: {
                 id: user._id,
                 username: user.username,
@@ -205,15 +214,14 @@ export const register = async (req, res) => {
                 lastName: user.lastName,
                 role: user.role,
                 fullName: user.fullName,
-                emailVerified: user.emailVerified
-            }
+                emailVerified: user.emailVerified,
+            },
         });
-
     } catch (error) {
-        console.error('Register error:', error);
+        console.error("Register error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -227,14 +235,13 @@ export const refreshToken = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Token refreshed successfully.'
+            message: "Token refreshed successfully.",
         });
-
     } catch (error) {
-        console.error('Refresh token error:', error);
+        console.error("Refresh token error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -246,14 +253,13 @@ export const logout = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Logged out successfully.'
+            message: "Logged out successfully.",
         });
-
     } catch (error) {
-        console.error('Logout error:', error);
+        console.error("Logout error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -263,14 +269,13 @@ export const getCurrentUser = async (req, res) => {
     try {
         res.status(200).json({
             success: true,
-            user: req.user
+            user: req.user,
         });
-
     } catch (error) {
-        console.error('Get current user error:', error);
+        console.error("Get current user error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -283,7 +288,7 @@ export const requestPasswordReset = async (req, res) => {
         if (!email) {
             return res.status(400).json({
                 success: false,
-                message: 'Email is required.'
+                message: "Email is required.",
             });
         }
 
@@ -294,14 +299,15 @@ export const requestPasswordReset = async (req, res) => {
         if (!user) {
             return res.status(200).json({
                 success: true,
-                message: 'If that email is registered, a reset link has been sent.'
+                message:
+                    "If that email is registered, a reset link has been sent.",
             });
         }
 
         if (!user.isActive) {
             return res.status(403).json({
                 success: false,
-                message: 'Account is disabled. Please contact administrator.'
+                message: "Account is disabled. Please contact administrator.",
             });
         }
 
@@ -317,19 +323,20 @@ export const requestPasswordReset = async (req, res) => {
         if (!emailSent) {
             return res.status(500).json({
                 success: false,
-                message: 'Failed to send reset email. Please try again.'
+                message: "Failed to send reset email. Please try again.",
             });
         }
 
         res.status(200).json({
             success: true,
-            message: 'Password reset instructions have been sent to your email.'
+            message:
+                "Password reset instructions have been sent to your email.",
         });
     } catch (error) {
-        console.error('Request password reset error:', error);
+        console.error("Request password reset error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -342,26 +349,26 @@ export const resetPassword = async (req, res) => {
         if (!token || !newPassword) {
             return res.status(400).json({
                 success: false,
-                message: 'Token and new password are required.'
+                message: "Token and new password are required.",
             });
         }
 
         if (newPassword.length < 6) {
             return res.status(400).json({
                 success: false,
-                message: 'New password must be at least 6 characters long.'
+                message: "New password must be at least 6 characters long.",
             });
         }
 
         const user = await User.findOne({
             passwordResetToken: token,
-            passwordResetExpires: { $gt: Date.now() }
+            passwordResetExpires: { $gt: Date.now() },
         });
 
         if (!user) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid or expired reset token.'
+                message: "Invalid or expired reset token.",
             });
         }
 
@@ -374,13 +381,13 @@ export const resetPassword = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Password has been reset successfully.'
+            message: "Password has been reset successfully.",
         });
     } catch (error) {
-        console.error('Reset password error:', error);
+        console.error("Reset password error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -394,14 +401,14 @@ export const changePassword = async (req, res) => {
         if (!currentPassword || !newPassword) {
             return res.status(400).json({
                 success: false,
-                message: 'Current password and new password are required.'
+                message: "Current password and new password are required.",
             });
         }
 
         if (newPassword.length < 6) {
             return res.status(400).json({
                 success: false,
-                message: 'New password must be at least 6 characters long.'
+                message: "New password must be at least 6 characters long.",
             });
         }
 
@@ -409,16 +416,17 @@ export const changePassword = async (req, res) => {
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: 'User not found.'
+                message: "User not found.",
             });
         }
 
         // Verify current password
-        const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+        const isCurrentPasswordValid =
+            await user.comparePassword(currentPassword);
         if (!isCurrentPasswordValid) {
             return res.status(400).json({
                 success: false,
-                message: 'Current password is incorrect.'
+                message: "Current password is incorrect.",
             });
         }
 
@@ -430,7 +438,7 @@ export const changePassword = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Password changed successfully.',
+            message: "Password changed successfully.",
             user: {
                 id: user._id,
                 username: user.username,
@@ -439,15 +447,14 @@ export const changePassword = async (req, res) => {
                 lastName: user.lastName,
                 role: user.role,
                 fullName: user.fullName,
-                passwordChanged: user.passwordChanged
-            }
+                passwordChanged: user.passwordChanged,
+            },
         });
-
     } catch (error) {
-        console.error('Change password error:', error);
+        console.error("Change password error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
@@ -462,7 +469,7 @@ export const updateProfile = async (req, res) => {
         if (!firstName || !lastName || !username) {
             return res.status(400).json({
                 success: false,
-                message: 'First name, last name, and username are required.'
+                message: "First name, last name, and username are required.",
             });
         }
 
@@ -470,20 +477,20 @@ export const updateProfile = async (req, res) => {
         if (username.length < 3) {
             return res.status(400).json({
                 success: false,
-                message: 'Username must be at least 3 characters long.'
+                message: "Username must be at least 3 characters long.",
             });
         }
 
         // Check if username is already taken by another user
         const existingUser = await User.findOne({
             username: username,
-            _id: { $ne: userId } // Exclude current user
+            _id: { $ne: userId }, // Exclude current user
         });
 
         if (existingUser) {
             return res.status(400).json({
                 success: false,
-                message: 'Username is already taken.'
+                message: "Username is already taken.",
             });
         }
 
@@ -491,7 +498,7 @@ export const updateProfile = async (req, res) => {
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: 'User not found.'
+                message: "User not found.",
             });
         }
 
@@ -503,7 +510,7 @@ export const updateProfile = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Profile updated successfully.',
+            message: "Profile updated successfully.",
             user: {
                 id: user._id,
                 username: user.username,
@@ -512,15 +519,14 @@ export const updateProfile = async (req, res) => {
                 lastName: user.lastName,
                 role: user.role,
                 fullName: user.fullName,
-                passwordChanged: user.passwordChanged
-            }
+                passwordChanged: user.passwordChanged,
+            },
         });
-
     } catch (error) {
-        console.error('Update profile error:', error);
+        console.error("Update profile error:", error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error.'
+            message: "Internal server error.",
         });
     }
 };
